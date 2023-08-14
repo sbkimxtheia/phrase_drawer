@@ -1,10 +1,11 @@
 import 'dart:developer';
 
 class PhraseLoader {
-  static const defaultSplitRegex = r"(\r\n)*###(\r\n)+";
+  static const defaultSplitRegex = r"(\r\n)*@@@(\r\n)+";
 
   static List<Phrase> loadFrom(String data,
       {String splitRegex = defaultSplitRegex}) {
+    Phrase.counter = 0;
     final list = List<Phrase>.empty(growable: true);
 
     for (final ment in data.split(RegExp(splitRegex))) {
@@ -27,5 +28,6 @@ class Phrase {
   Phrase(this.msg);
 
   late final length = msg.length;
-  late final lines = msg.split(RegExp('\r\n')).length - 1;
+  late final linesCount = msg.split(RegExp('\r\n')).length - 1;
+  late final summary = "${msg.replaceAll("\r\n", " ").substring(0, 45)} ...";
 }

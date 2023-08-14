@@ -22,7 +22,7 @@ class PhraseDrawerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '리뷰 멘트 가챠 머신',
+      title: '리뷰 멘트 머신',
       theme: ThemeData.dark().copyWith(
         appBarTheme: const AppBarTheme(
           color: primaryColor,
@@ -32,7 +32,7 @@ class PhraseDrawerApp extends StatelessWidget {
           primary: primaryColor,
         ),
       ),
-      home: const MainPage(title: '멘트 생성기'),
+      home: const MainPage(title: '리뷰 멘트 머신'),
     );
   }
 }
@@ -58,11 +58,16 @@ class _MainPageState extends State<MainPage> {
   bool _drawOnCopy = true;
   bool _copied = false;
 
+  int _previousIndex = 0;
+  int _drawCount = 0;
+  int _copyCount = 0;
+
   final _textButtonStyle = ButtonStyle(
       backgroundColor: MaterialStateProperty.all(primaryColor),
       foregroundColor: MaterialStateProperty.all(Colors.white));
 
   void _draw() {
+    final previous = _currentPhraseIdx;
     int idx;
     if (_phrasesCount <= 1) {
       idx = 0;
@@ -77,6 +82,8 @@ class _MainPageState extends State<MainPage> {
     final newPhrase = _phrases[idx];
 
     setState(() {
+      _previousIndex = previous;
+      _drawCount += 1;
       _copied = false;
       _currentPhrase = newPhrase;
     });
@@ -109,6 +116,13 @@ class _MainPageState extends State<MainPage> {
     );
 
     late final Widget page;
+
+    final fileSelectorBtn = TextButton(
+      style: _textButtonStyle.copyWith(
+          backgroundColor: MaterialStatePropertyAll(Colors.amber)),
+      child: const Text('파일 다시 선택'),
+      onPressed: _openFileSelector,
+    );
 
     switch (_currentState) {
       // region Select
@@ -144,7 +158,7 @@ class _MainPageState extends State<MainPage> {
                     _spligRegex = regex;
                     Fluttertoast.showToast(msg: "Custom Regex Set : $regex");
                   },
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     helperText: "사용자 지정 스플리터 정규식",
                     hintText: PhraseLoader.defaultSplitRegex,
                   ),
@@ -170,13 +184,7 @@ class _MainPageState extends State<MainPage> {
                   SizedBox(
                     width: 200,
                     height: 40,
-                    child: TextButton(
-                      style: _textButtonStyle.copyWith(
-                          backgroundColor:
-                              MaterialStatePropertyAll(Colors.amber)),
-                      child: const Text('파일 다시 선택'),
-                      onPressed: _openFileSelector,
-                    ),
+                    child: fileSelectorBtn,
                   ),
                   SizedBox(width: 20),
                   SizedBox(
@@ -211,15 +219,60 @@ class _MainPageState extends State<MainPage> {
           break;
         }
         final msg = phrase.msg;
+
+        final explorerBtn = TextButton(
+          style: _textButtonStyle,
+          onPressed: () {
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (ctx) {
+                    return Scaffold(
+                      appBar: AppBar(
+                        title: Text(
+                            '$_phrasesCount개의 멘트가 로드되었습니다. ( 클릭하여 클립보드에 복사 )'),
+                      ),
+                      body: ListView.separated(
+                        itemCount: _phrasesCount,
+                        itemBuilder: (ctx2, idx) {
+                          final p = _phrases[idx];
+                          return ListTile(
+                            leading: Text(
+                              p.num.toString(),
+                              style: Theme.of(ctx2).textTheme.titleLarge,
+                            ),
+                            title: Text(p.msg),
+                            onTap: () {
+                              _copyToClipboard(
+                                  p.msg, "${p.num}번 멘트가 클립보드에 복사되었습니다.");
+                            },
+                          );
+                        },
+                        separatorBuilder: (BuildContext context, int index) =>
+                            const Divider(
+                          thickness: 2,
+                          indent: 1.0,
+                          color: primaryColor,
+                        ),
+                      ),
+                    );
+                  },
+                ));
+          },
+          child: Text('멘트 탐색기'),
+        );
+
         page = Column(
-          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Row(
                   children: [
-                    const Text("복사 후 새 멘트 즉시 생성"),
+                    const Text("복사 후 즉시 새로고침"),
                     Switch(
                       value: _drawOnCopy,
                       onChanged: (v) => setState(() => _drawOnCopy = v),
@@ -253,14 +306,10 @@ class _MainPageState extends State<MainPage> {
                           ),
                         ),
                         onTap: () {
-                          Clipboard.setData(ClipboardData(text: phrase.msg));
-                          Fluttertoast.showToast(
-                            msg: "${phrase.num}번 멘트가 클립보드에 복사되었습니다.",
-                            toastLength: Toast.LENGTH_LONG,
-                            gravity: ToastGravity.TOP,
-                          );
-
+                          _copyToClipboard(
+                              msg, "${phrase.num}번 멘트가 클립보드에 복사되었습니다.");
                           setState(() {
+                            _copyCount += 1;
                             _copied = true;
                           });
 
@@ -272,12 +321,29 @@ class _MainPageState extends State<MainPage> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      "멘트 인덱스 : ${phrase.num}, 길이 : ${phrase.length}, 줄바꿈 : ${phrase.lines} ${_copied ? " (복사됨)" : ""}",
+                      "현재 멘트 인덱스 : ${phrase.num} / 길이 : ${phrase.length} / 줄바꿈 : ${phrase.linesCount} ${_copied ? " (복사됨)" : ""}",
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
+                    const SizedBox(height: 5),
+                    Text("이전 멘트 인덱스 : $_previousIndex")
                   ],
                 ),
               ),
+            ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('새로고침 수 : $_drawCount / 복사 수 : $_copyCount'),
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    fileSelectorBtn,
+                    const SizedBox(width: 10),
+                    explorerBtn,
+                  ],
+                ),
+              ],
             ),
           ],
         );
@@ -298,6 +364,15 @@ class _MainPageState extends State<MainPage> {
       ),
       floatingActionButton: drawButton,
     );
+  }
+
+  void _copyToClipboard(String clipboard, String message) {
+    Clipboard.setData(ClipboardData(text: clipboard));
+    Fluttertoast.showToast(
+        msg: message,
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.TOP_RIGHT,
+        webPosition: 'right');
   }
 }
 
