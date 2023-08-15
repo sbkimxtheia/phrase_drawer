@@ -1,7 +1,9 @@
 import 'dart:developer';
 
+
 class PhraseLoader {
   static const defaultSplitRegex = r"(\r\n)*@@@(\r\n)+";
+
 
   static List<Phrase> loadFrom(String data,
       {String splitRegex = defaultSplitRegex}) {
